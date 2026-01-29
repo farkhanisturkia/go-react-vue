@@ -1,5 +1,5 @@
 # Register
-curl -X POST http://localhost:3000/api/register   -H "Content-Type: application/json"   -d '{
+curl -X POST "http://localhost:3000/api/register"   -H "Content-Type: application/json"   -d '{
     "name": "Fika Ridaul Maulayya",
     "username": "maulayyacyber",
     "email": "fika@santrikoding.com",
@@ -7,17 +7,17 @@ curl -X POST http://localhost:3000/api/register   -H "Content-Type: application/
 }'
 
 # Login
-curl -X POST http://localhost:3000/api/login   -H "Content-Type: application/json"   -d '{
+curl -X POST "http://localhost:3000/api/login"   -H "Content-Type: application/json"   -d '{
     "username": "maulayyacyber",
     "password": "password"
 }'
 
 # Get users
-curl http://localhost:3000/api/users \
+curl "http://localhost:3000/api/users?page=1&size=10" \
   -H "Authorization: Bearer ..."
 
 # Create users
-curl -X POST http://localhost:3000/api/users \
+curl -X POST "http://localhost:3000/api/users" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ..." \
   -d '{
@@ -28,11 +28,11 @@ curl -X POST http://localhost:3000/api/users \
 }'
 
 # Get user by ID
-curl http://localhost:3000/api/users/1 \
+curl "http://localhost:3000/api/users/1" \
   -H "Authorization: Bearer ..."
 
 # Update user by ID
-curl -X PUT http://localhost:3000/api/users/1 \
+curl -X PUT "http://localhost:3000/api/users/1" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ..." \
   -d '{
@@ -43,5 +43,5 @@ curl -X PUT http://localhost:3000/api/users/1 \
 }'
 
 # Delete user by ID
-curl -v -X DELETE http://localhost:3000/api/users/1 \
+curl -X DELETE "http://localhost:3000/api/users/1" \
   -H "Authorization: Bearer ..."

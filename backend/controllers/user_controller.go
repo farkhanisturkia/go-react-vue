@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,34 +14,63 @@ import (
 	"go-react/backend/models"
 	"go-react/backend/pkg/redis"
 	"go-react/backend/structs"
+	"go-react/backend/cache"
 )
 
 const (
-	userListCacheKey = "users:list"
-	userCachePrefix  = "user:id:"
-	cacheTTL         = 5 * time.Minute
-	userTTL          = 10 * time.Minute
+	defaultPageSize      = 10
+	maxPageSize          = 50
 )
 
-// FindUsers - List semua user (dengan cache)
 func FindUsers(c *gin.Context) {
+	pageStr := c.DefaultQuery("page", "1")
+	sizeStr := c.DefaultQuery("size", strconv.Itoa(defaultPageSize))
+
+	page, _ := strconv.Atoi(pageStr)
+	if page < 1 {
+		page = 1
+	}
+
+	size, _ := strconv.Atoi(sizeStr)
+	if size < 1 || size > maxPageSize {
+		size = defaultPageSize
+	}
+
+	offset := (page - 1) * size
+	cacheKey := fmt.Sprintf("%s%d:size:%d", cache.UserListCachePrefix, page, size)
+
 	var users []models.User
 
-	// Coba ambil dari Redis dulu
-	val, err := redis.Client.Get(redis.Ctx, userListCacheKey).Result()
+	val, err := redis.Client.Get(redis.Ctx, cacheKey).Result()
 	if err == nil {
 		if json.Unmarshal([]byte(val), &users) == nil {
-			c.JSON(http.StatusOK, structs.SuccessResponse{
+			total := cache.GetUsersTotalCount()
+			c.JSON(http.StatusOK, structs.PaginatedResponse{
 				Success: true,
 				Message: "Lists Data Users (from cache)",
 				Data:    users,
+				Page:    page,
+				Size:    size,
+				Total:   total,
 			})
 			return
 		}
 	}
 
-	// Cache miss → ambil dari DB
-	if err := database.DB.Find(&users).Error; err != nil {
+	var total int64
+	if err := database.DB.Model(&models.User{}).Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, structs.ErrorResponse{
+			Success: false,
+			Message: "Failed to count users",
+			Errors:  helpers.TranslateErrorMessage(err),
+		})
+		return
+	}
+
+	if err := database.DB.
+		Offset(offset).
+		Limit(size).
+		Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, structs.ErrorResponse{
 			Success: false,
 			Message: "Failed to fetch users",
@@ -48,19 +79,27 @@ func FindUsers(c *gin.Context) {
 		return
 	}
 
-	// Simpan ke Redis
-	if data, err := json.Marshal(users); err == nil {
-		redis.Client.Set(redis.Ctx, userListCacheKey, data, cacheTTL)
+	if len(users) > 0 {
+		if data, err := json.Marshal(users); err == nil {
+			redis.Client.Set(redis.Ctx, cacheKey, data, cache.CacheTTL)
+			// ← Track key ini di Set
+			redis.Client.SAdd(redis.Ctx, cache.UserListKeysSet, cacheKey)
+			redis.Client.Expire(redis.Ctx, cache.UserListKeysSet, cache.CacheTTL)
+		}
 	}
 
-	c.JSON(http.StatusOK, structs.SuccessResponse{
+	redis.Client.Set(redis.Ctx, cache.UserTotalCacheKey, strconv.FormatInt(total, 10), cache.CacheTTL)
+
+	c.JSON(http.StatusOK, structs.PaginatedResponse{
 		Success: true,
 		Message: "Lists Data Users",
 		Data:    users,
+		Page:    page,
+		Size:    size,
+		Total:   total,
 	})
 }
 
-// CreateUser - Buat user + hapus cache list
 func CreateUser(c *gin.Context) {
 	var req structs.UserCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -88,8 +127,9 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Invalidate cache list
-	redis.Client.Del(redis.Ctx, userListCacheKey)
+	cache.InvalidateUserListCache()
+	userCacheKey := cache.UserCachePrefix + strconv.Itoa(int(user.Id))
+	redis.Client.Del(redis.Ctx, userCacheKey)
 
 	c.JSON(http.StatusCreated, structs.SuccessResponse{
 		Success: true,
@@ -105,15 +145,12 @@ func CreateUser(c *gin.Context) {
 	})
 }
 
-
-// FindUserById - Detail user (dengan cache)
 func FindUserById(c *gin.Context) {
 	id := c.Param("id")
-	cacheKey := userCachePrefix + id
+	cacheKey := cache.UserCachePrefix + id
 
 	var user models.User
 
-	// Coba dari cache
 	val, err := redis.Client.Get(redis.Ctx, cacheKey).Result()
 	if err == nil {
 		if json.Unmarshal([]byte(val), &user) == nil {
@@ -133,7 +170,6 @@ func FindUserById(c *gin.Context) {
 		}
 	}
 
-	// Cache miss
 	if err := database.DB.First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, structs.ErrorResponse{
 			Success: false,
@@ -143,9 +179,8 @@ func FindUserById(c *gin.Context) {
 		return
 	}
 
-	// Simpan ke cache
 	if data, err := json.Marshal(user); err == nil {
-		redis.Client.Set(redis.Ctx, cacheKey, data, userTTL)
+		redis.Client.Set(redis.Ctx, cacheKey, data, cache.UserTTL)
 	}
 
 	c.JSON(http.StatusOK, structs.SuccessResponse{
@@ -162,10 +197,8 @@ func FindUserById(c *gin.Context) {
 	})
 }
 
-// UpdateUser - Update + invalidate cache related
 func UpdateUser(c *gin.Context) {
 	id := c.Param("id")
-
 	var user models.User
 	if err := database.DB.First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, structs.ErrorResponse{
@@ -202,9 +235,9 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Invalidate cache
-	cacheKey := userCachePrefix + id
-	redis.Client.Del(redis.Ctx, cacheKey, userListCacheKey)
+	cache.InvalidateUserListCache()
+	cacheKey := cache.UserCachePrefix + id
+	redis.Client.Del(redis.Ctx, cacheKey)
 
 	c.JSON(http.StatusOK, structs.SuccessResponse{
 		Success: true,
@@ -220,10 +253,8 @@ func UpdateUser(c *gin.Context) {
 	})
 }
 
-// DeleteUser - Hapus + invalidate cache
 func DeleteUser(c *gin.Context) {
 	id := c.Param("id")
-
 	var user models.User
 	if err := database.DB.First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, structs.ErrorResponse{
@@ -243,9 +274,9 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Invalidate cache
-	cacheKey := userCachePrefix + id
-	redis.Client.Del(redis.Ctx, cacheKey, userListCacheKey)
+	cache.InvalidateUserListCache()
+	cacheKey := cache.UserCachePrefix + id
+	redis.Client.Del(redis.Ctx, cacheKey)
 
 	c.JSON(http.StatusOK, structs.SuccessResponse{
 		Success: true,

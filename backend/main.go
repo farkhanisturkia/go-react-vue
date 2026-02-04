@@ -18,6 +18,9 @@ func main() {
 	//inisialisasi database
 	database.InitDB()
 
+	// seeder
+	database.Seed()
+
 	//setup router
 	r := routes.SetupRouter()
 

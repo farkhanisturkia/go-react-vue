@@ -1,3 +1,9 @@
+# Run Backend
+1. go run .               → normal run
+2. go run . reset         → reset users lalu run
+3. go run . seed          → seed ulang lalu run
+4. go run . reset-seed    → reset + seed lalu run
+
 # Register
 curl -X POST "http://localhost:3000/api/register"   -H "Content-Type: application/json"   -d '{
     "name": "Fika Ridaul Maulayya",

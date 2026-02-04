@@ -91,14 +91,11 @@ export const Login: FC = () => {
                             <div className="form-group mb-3">
                                 <label className="mb-1 fw-bold">Username</label>
                                 <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="form-control" placeholder="Username" />
-                                {errors.Username && <div className="alert alert-danger mt-2 rounded-4">{errors.Username}</div>}
                             </div>
 
                             <div className="form-group mb-3">
                                 <label className="mb-1 fw-bold">Password</label>
-                                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="form-control"
-                                    placeholder="Password" />
-                                {errors.Password && <div className="alert alert-danger mt-2 rounded-4">{errors.Password}</div>}
+                                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="form-control" placeholder="Password" />
                             </div>
                             <button type="submit" className="btn btn-primary w-100 rounded-4" disabled={isPending}>
                                 {isPending ? 'Loading...' : 'LOGIN'}

@@ -7,6 +7,9 @@ import { AuthContext } from '../context/AuthContext.tsx';
 //import react router dom
 import { Routes, Route, Navigate } from "react-router";
 
+//import view welcome
+import Welcome from "../views/welcome/index.tsx";
+
 //import view home
 import Home from "../views/home/index.tsx";
 
@@ -39,7 +42,10 @@ export default function AppRoutes() {
     return (
         <Routes>
             {/* route "/" */}
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Welcome />} />
+
+            {/* route "/home" */}
+            <Route path="/home" element={<Home />} />
 
             {/* route "/register" */}
             <Route path="/register" element={

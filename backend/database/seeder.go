@@ -16,6 +16,18 @@ func Seed() {
 	var users []models.User
 	now := time.Now()
 
+	admin := models.User{
+		Name:		fmt.Sprintf("admin"),
+		Username:	fmt.Sprintf("admin"),
+		Email:		fmt.Sprintf("admin@gmail.com"),
+		Role:		fmt.Sprintf("admin"),
+		Password:	helpers.HashPassword("password"),
+		CreatedAt: 	now,
+		UpdatedAt: 	now,
+	}
+
+	DB.Create(&admin)
+
 	// Generate 1000 users
 	for i := 1; i <= 1000; i++ {
 		username := fmt.Sprintf("username%d", i)

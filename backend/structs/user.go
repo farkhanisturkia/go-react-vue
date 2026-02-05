@@ -1,5 +1,7 @@
 package structs
 
+import "time"
+
 // Struct ini digunakan untuk menampilkan data user sebagai response API
 type UserResponse struct {
 	Id        uint    `json:"id"`
@@ -7,9 +9,14 @@ type UserResponse struct {
 	Username  string  `json:"username"`
 	Email     string  `json:"email"`
 	Role	  string  `json:"role"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 	Token     *string `json:"token,omitempty"`
+}
+
+type UserListItemResponse struct {
+    UserResponse
+    EnrolledCoursesCount int64 `json:"enrolled_courses_count,omitempty"`
 }
 
 // Struct ini digunakan untuk menerima data saat proses create user

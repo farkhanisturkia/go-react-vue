@@ -36,28 +36,22 @@ func FindUsers(c *gin.Context) {
 	}
 
 	offset := (page - 1) * size
-	cacheKey := fmt.Sprintf("%s%d:size:%d", cache.UserListCachePrefix, page, size)
-
-	var users []models.User
+	cacheKey := fmt.Sprintf("%s%d:size:%d:role:user", cache.UserListCachePrefix, page, size)
 
 	val, err := redis.Client.Get(redis.Ctx, cacheKey).Result()
 	if err == nil {
-		if json.Unmarshal([]byte(val), &users) == nil {
-			total := cache.GetUsersTotalCount()
-			c.JSON(http.StatusOK, structs.PaginatedResponse{
-				Success: true,
-				Message: "Lists Data Users (from cache)",
-				Data:    users,
-				Page:    page,
-				Size:    size,
-				Total:   total,
-			})
+		var cachedResponse structs.PaginatedResponse[structs.UserListItemResponse]
+		if json.Unmarshal([]byte(val), &cachedResponse) == nil {
+			cachedResponse.Message = "Lists Data Users (dari cache)"
+			c.JSON(http.StatusOK, cachedResponse)
 			return
 		}
 	}
 
 	var total int64
-	if err := database.DB.Model(&models.User{}).Count(&total).Error; err != nil {
+	if err := database.DB.Model(&models.User{}).
+		Where("role = ?", "user").
+		Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, structs.ErrorResponse{
 			Success: false,
 			Message: "Failed to count users",
@@ -66,20 +60,48 @@ func FindUsers(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.
+	subQuery := database.DB.Table("user_courses").
+		Select("COUNT(*)").
+		Where("user_courses.participant_id = users.id")
+
+	var users []structs.UserListItemResponse
+	err = database.DB.
+		Table("users").
+		Select(`
+			users.id,
+			users.name,
+			users.username,
+			users.email,
+			users.role,
+			users.created_at,
+			users.updated_at,
+			(?) AS enrolled_courses_count
+		`, subQuery).
+		Where("users.role = ?", "user").
 		Offset(offset).
 		Limit(size).
-		Find(&users).Error; err != nil {
+		Scan(&users).Error
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, structs.ErrorResponse{
 			Success: false,
-			Message: "Failed to fetch users",
+			Message: "Getting lists Data Users is failed",
 			Errors:  helpers.TranslateErrorMessage(err),
 		})
 		return
 	}
 
+	response := structs.PaginatedResponse[structs.UserListItemResponse] {
+		Success: true,
+		Message: "Lists Data Users",
+		Data:    users,
+		Page:    page,
+		Size:    size,
+		Total:   total,
+	}
+
 	if len(users) > 0 {
-		if data, err := json.Marshal(users); err == nil {
+		if data, err := json.Marshal(response); err == nil {
 			redis.Client.Set(redis.Ctx, cacheKey, data, cache.CacheTTL)
 			// ← Track key ini di Set
 			redis.Client.SAdd(redis.Ctx, cache.UserListKeysSet, cacheKey)
@@ -89,14 +111,7 @@ func FindUsers(c *gin.Context) {
 
 	redis.Client.Set(redis.Ctx, cache.UserTotalCacheKey, strconv.FormatInt(total, 10), cache.CacheTTL)
 
-	c.JSON(http.StatusOK, structs.PaginatedResponse{
-		Success: true,
-		Message: "Lists Data Users",
-		Data:    users,
-		Page:    page,
-		Size:    size,
-		Total:   total,
-	})
+	c.JSON(http.StatusOK, response)
 }
 
 func CreateUser(c *gin.Context) {
@@ -138,8 +153,8 @@ func CreateUser(c *gin.Context) {
 			Name:      user.Name,
 			Username:  user.Username,
 			Email:     user.Email,
-			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
 		},
 	})
 }
@@ -161,8 +176,8 @@ func FindUserById(c *gin.Context) {
 					Name:      user.Name,
 					Username:  user.Username,
 					Email:     user.Email,
-					CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-					UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+					CreatedAt: user.CreatedAt,
+					UpdatedAt: user.UpdatedAt,
 				},
 			})
 			return
@@ -190,8 +205,8 @@ func FindUserById(c *gin.Context) {
 			Name:      user.Name,
 			Username:  user.Username,
 			Email:     user.Email,
-			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
 		},
 	})
 }
@@ -246,8 +261,8 @@ func UpdateUser(c *gin.Context) {
 			Name:      user.Name,
 			Username:  user.Username,
 			Email:     user.Email,
-			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
 		},
 	})
 }

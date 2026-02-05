@@ -32,7 +32,7 @@ func main() {
 		switch arg {
 		case "reset":
 			fmt.Println("Mode: RESET users table")
-			database.ResetUsers(false) // reset tanpa seed ulang
+			database.ResetAll(false) // reset tanpa seed ulang
 
 		case "seed":
 			fmt.Println("Mode: SEED only (tanpa reset)")
@@ -40,7 +40,7 @@ func main() {
 
 		case "reset-seed":
 			fmt.Println("Mode: RESET + SEED ulang")
-			database.ResetUsers(true) // true = seed setelah reset
+			database.ResetAll(true) // true = seed setelah reset
 
 		default:
 			fmt.Printf("Argumen tidak dikenal: %s\n", arg)

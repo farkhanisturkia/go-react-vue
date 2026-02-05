@@ -62,8 +62,8 @@ func Login(c *gin.Context) {
 			Username:  user.Username,
 			Email:     user.Email,
 			Role:	   user.Role,
-			CreatedAt: user.CreatedAt.String(),
-			UpdatedAt: user.UpdatedAt.String(),
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
 			Token:     &token,
 		},
 	})

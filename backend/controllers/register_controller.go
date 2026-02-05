@@ -64,8 +64,8 @@ func Register(c *gin.Context) {
 			Name:      user.Name,
 			Username:  user.Username,
 			Email:     user.Email,
-			CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
 		},
 	})
 }
